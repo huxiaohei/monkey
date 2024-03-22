@@ -1,0 +1,18 @@
+{
+    "pdAddress": "192.168.81.128:8081",
+    "listenAddress": "192.168.81.128:8080",
+    "listenPath": "/ws",
+    "load": 0,
+    "serverTTL": 15,
+    "receiveTimeout": 15,
+    "services": {
+        "IGateway": "gateway",
+        "IPlayer": "player"
+    },
+    "desc": "gateway server",
+    "label": {
+        "version": "1.0.0",
+        "env": "dev",
+        "zone": "shanghai"
+    }
+}

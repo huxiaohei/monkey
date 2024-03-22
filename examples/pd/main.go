@@ -1,0 +1,22 @@
+package main
+
+import (
+	"monkey/logger"
+	"monkey/pd"
+	"monkey/pd/storage"
+)
+
+var (
+	log, _ = logger.GetLoggerManager().GetLogger(logger.MainTag)
+)
+
+func main() {
+
+	log.Info("pd started")
+
+	memoryStorage := storage.NewMemoryStorage()
+
+	pd.Start(memoryStorage, memoryStorage, memoryStorage, "192.168.81.128:8081", "0.0.1")
+
+	log.Info("pd stopped")
+}
