@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+enum RPCErrorCodes
+{
+    OK = 0;
+    SESSION_ID_ERROR = 1;
+}
+
+message RPCError
+{
+    RPCErrorCodes code = 1;
+    string msg = 2;
+}

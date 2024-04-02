@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+// actor -> client
+message ClientMsg
+{
+    uint64 session_id = 1;
+    bytes payload = 2;
+}
+
+// client -> actor
+message CommonMsg
+{
+    uint64 server_id = 1;
+    uint64 session_id = 2;
+    bytes payload = 3;
+}
+
+message BindMsg
+{
+    uint64 server_id = 1;
+    uint64 user_id = 2;
+    uint64 session_id = 3;
+}

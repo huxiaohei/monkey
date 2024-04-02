@@ -16,7 +16,7 @@ func main() {
 
 	memoryStorage := storage.NewMemoryStorage()
 
-	pd.Start(memoryStorage, memoryStorage, memoryStorage, "192.168.81.128:8081", "0.0.1")
+	pd.Start(memoryStorage, memoryStorage, memoryStorage, "0.0.0.0:8000", "0.0.1")
 
 	log.Info("pd stopped")
 }

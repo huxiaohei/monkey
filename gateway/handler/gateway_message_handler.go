@@ -7,7 +7,8 @@ import (
 	"monkey/logger"
 	"monkey/network"
 	"monkey/placement"
-	"monkey/utils"
+	"monkey/rpc"
+	"monkey/rpc/pb"
 )
 
 var (
@@ -57,11 +58,12 @@ func (gmh *GatewayMessageHandler) processFirstMessage(session network.ConnSessio
 	gmh.ActorInfo.SessionId = session.GetSessionId()
 	gmh.ActorInfo.SessionServerId = gmh.PD.GetCurServerId()
 
-	gmhlog.Info("active actor: ", gmh.ActorInfo)
-	resp := protos.NewFirstPacketResponse(firstPacket.UserId, firstPacket.Token, "nonce", utils.GetNowMs())
-	// TODO: send a message to actor to active actor
-	session.SendMessage(resp)
-
+	player, err := rpc.GetRPCClientManager().GetPlayerClient(gmh.ActorInfo.ActorId.Id)
+	if err != nil {
+		gmhlog.Errorf("get player rpc client error %v", err)
+		return
+	}
+	player.Bind(&pb.BindMsg{ServerId: gmh.PD.GetCurServerId(), UserId: gmh.ActorInfo.ActorId.Id, SessionId: uint64(session.GetSessionId())})
 }
 
 func (gmh *GatewayMessageHandler) processCommonMessage(session network.ConnSession, msg interface{}) {
@@ -73,8 +75,22 @@ func (gmh *GatewayMessageHandler) processCommonMessage(session network.ConnSessi
 	if pos.ServerId != gmh.ActorInfo.ServerId {
 		gmh.ActorInfo.ServerId = pos.ServerId
 	}
-	// TODO: generate rpc message use gRPC send to actor
-	session.SendMessage(msg)
+
+	player, err := rpc.GetRPCClientManager().GetPlayerClient(gmh.ActorInfo.ActorId.Id)
+	if err != nil {
+		gmhlog.Errorf("get player rpc client error %v", err)
+		return
+	}
+	data, ok := msg.(string)
+	if !ok {
+		gmhlog.Errorf("message is not byte array %v", msg)
+		return
+	}
+	player.ReceiveMessage(&pb.CommonMsg{
+		ServerId:  gmh.PD.GetCurServerId(),
+		SessionId: uint64(session.GetSessionId()),
+		Payload:   []byte(data),
+	})
 }
 
 func (gmh *GatewayMessageHandler) ProcessMessage(session network.ConnSession, msg interface{}) {

@@ -134,6 +134,14 @@ func (pdp *PDPlacement) GenerateNewToken() (*GenerateNewTokenResponse, error) {
 	return &resp, nil
 }
 
+func (pdp *PDPlacement) GetServerInfo(serverId uint64) *PlacementActorHostInfo {
+	info, ok := pdp.host[serverId]
+	if ok {
+		return &info
+	}
+	return nil
+}
+
 func (pdp *PDPlacement) RegisterServer(info *PlacementActorHostInfo) uint64 {
 	if info.TTL <= 0 {
 		info.TTL = 15
@@ -336,7 +344,6 @@ func (pdp *PDPlacement) pullOnce() (ok bool) {
 		pdloger.Errorf("pullOnce failed resp is nil")
 		return false
 	}
-	pdloger.Infof("pullOnce Host:%d Event:%d", len(resp.Events), len(resp.Hosts))
 	for _, event := range resp.Events {
 		pdp.processAddServerEvent(resp.Hosts, event)
 		pdp.processRemoveServerEvent(event)

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+import "rpc/pb/rpcmsg.proto";
+import "google/protobuf/empty.proto";
+
+service Player
+{
+
+    rpc Bind(BindMsg) returns (google.protobuf.Empty)
+    {
+    }
+
+    rpc ReceiveMessage(CommonMsg) returns (google.protobuf.Empty)
+    {
+    }
+}

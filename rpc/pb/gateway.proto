@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+import "google/protobuf/empty.proto";
+import "rpc/pb/rpcmsg.proto";
+
+service Gateway
+{
+    rpc SendMessage(ClientMsg) returns (google.protobuf.Empty)
+    {
+    }
+}

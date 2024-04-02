@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
+
 	gatewayConf, err := conf.NewGatewayConf("conf.json")
 	if err != nil {
 		panic(err)

@@ -44,7 +44,7 @@ func (s *MemoryStorage) ClearActors() {
 	defer s.mulex.Unlock()
 	s.mulex.Lock()
 
-	mlog.Info("MemoryStorage closed")
+	mlog.Info("MemoryStorage ClearActors")
 	s.actorCache = make(map[string]*placement.PlacementActorPosition)
 }
 
@@ -65,6 +65,7 @@ func (s *MemoryStorage) PutActorInfo(info *placement.PlacementActorPosition) err
 
 	key := ActorIdToStorageKey(&info.ActorId)
 	s.actorCache[key] = info
+	mlog.Infof("MemoryStorage PutActorInfo %s", info)
 	return nil
 }
 
@@ -74,6 +75,7 @@ func (s *MemoryStorage) DeleteActor(actorId *actor.ActorId) error {
 
 	key := ActorIdToStorageKey(actorId)
 	delete(s.actorCache, key)
+	mlog.Infof("MemoryStorage DeleteActor %s", actorId)
 	return nil
 }
 
@@ -104,6 +106,7 @@ func (s *MemoryStorage) RegisterServer(info *placement.PlacementActorHostInfo) e
 	info.StartTime = utils.GetNowSec()
 	info.DeadTime = utils.GetNowSec() + info.TTL
 	s.serverCache[info.ServerId] = info
+	mlog.Infof("MemoryStorage RegisterServer %s", info)
 	return nil
 }
 
@@ -115,6 +118,7 @@ func (s *MemoryStorage) DeleteServer(serverId uint64) error {
 		return fmt.Errorf("server not found %v", serverId)
 	}
 	delete(s.serverCache, serverId)
+	mlog.Infof("MemoryStorage DeleteServer %v", serverId)
 	return nil
 }
 

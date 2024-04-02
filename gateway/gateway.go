@@ -8,6 +8,7 @@ import (
 	"monkey/logger"
 	"monkey/network"
 	"monkey/placement"
+	"monkey/rpc"
 	"monkey/utils"
 	"net/http"
 
@@ -52,8 +53,8 @@ func registerServer(cfg *conf.GatewayConf) uint64 {
 		StartTime: utils.GetNowMs(),
 		TTL:       cfg.ServerTTL,
 		DeadTime:  0,
-		Address:   cfg.PdAddress,
-		Services:  cfg.Services,
+		Address:   cfg.ListenAddress,
+		Services:  map[string]string{"IGateway": cfg.IGatewayRPC},
 		Desc:      cfg.Desc,
 		Labels:    cfg.Labels,
 	})
@@ -70,12 +71,13 @@ func Start(cfg *conf.GatewayConf) {
 	glog.Infof("Gateway starting %v", cfg)
 
 	pd = placement.NewPDPlacement(cfg.PdAddress)
+	rpc.GetRPCClientManager().SetPlacement(pd)
 	serverId := registerServer(cfg)
 	if serverId == 0 {
 		glog.Errorf("register server error pdAddress:%v", cfg.PdAddress)
 		return
 	}
-	glog.Info("Gateway server id: ", serverId)
+	rpc.StartGatewayRPCServer(cfg.IGatewayRPC, sessionManager)
 	receiveTimeout = cfg.ReceiveTimeout
 	http.HandleFunc(cfg.ListenPath, accept)
 	err := http.ListenAndServe(cfg.ListenAddress, nil)

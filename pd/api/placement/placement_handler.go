@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	phloger, _ = logger.GetLoggerManager().GetLogger(logger.MainTag)
+	mlog, _ = logger.GetLoggerManager().GetLogger(logger.MainTag)
 )
 
 type PlacementHandler struct {
@@ -33,7 +33,7 @@ func NewPlacementHandler(serverStorgate storage.ServerStorage, actorStorage stor
 func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*placement.PlacementActorPosition, error) {
 	hosts, err := ph.serverStorgate.GetAllServerInfo()
 	if err != nil {
-		phloger.Error("GenNewActor GetAllServerInfo failed ", err)
+		mlog.Error("GenNewActor GetAllServerInfo failed ", err)
 		return nil, err
 	}
 	var bestHost *placement.PlacementActorHostInfo
@@ -50,12 +50,12 @@ func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*pla
 		}
 	}
 	if bestHost == nil {
-		phloger.Error("GenNewActor no host found ", actorId)
+		mlog.Error("GenNewActor no host found ", actorId)
 		return nil, fmt.Errorf("no host found %v", actorId)
 	}
 	token, err := utils.GenerateToken(32)
 	if err != nil {
-		phloger.Error("GenNewActor GenerateToken failed ", err)
+		mlog.Error("GenNewActor GenerateToken failed ", err)
 		return nil, err
 	}
 	pos := &placement.PlacementActorPosition{
@@ -68,7 +68,7 @@ func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*pla
 	}
 	err = ph.actorStorage.PutActorInfo(pos)
 	if err != nil {
-		phloger.Error("GenNewActor PutActorInfo failed ", err)
+		mlog.Error("GenNewActor PutActorInfo failed ", err)
 		return nil, err
 	}
 	return pos, nil
@@ -77,7 +77,7 @@ func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*pla
 func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		phloger.Error("FindPosition Error reading request body ", err)
+		mlog.Error("FindPosition Error reading request body ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading request body"})
 		return
 	}
@@ -85,7 +85,7 @@ func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 	var req placement.PlacementFindActorPositionArgs
 	err = json.Unmarshal(bodyBytes, &req)
 	if err != nil {
-		phloger.Error("FindPosition json.Unmarshal failed ", err)
+		mlog.Error("FindPosition json.Unmarshal failed ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -94,25 +94,38 @@ func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 	}
 	pos, ok, err := ph.actorStorage.GetActorInfo(&req.ActorId)
 	if err != nil {
-		phloger.Error("FindPosition GetActorInfo failed ", err)
+		mlog.Error("FindPosition GetActorInfo failed ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if ok && !ph.serverStorgate.IsServerValid(pos.ServerId) {
+		ok = false
+		ph.actorStorage.DeleteActor(&req.ActorId)
 	}
 	if !ok {
 		pos, err = ph.GenNewActor(&req.ActorId, req.TTL)
 		if err != nil {
-			phloger.Error("FindPosition GenNewActor failed ", err)
+			mlog.Error("FindPosition GenNewActor failed ", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		pos.DeadTime = utils.GetNowSec() + pos.TTL
+		err = ph.actorStorage.PutActorInfo(pos)
+		if err != nil {
+			mlog.Error("KeepAlive PutActorInfo failed ", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	}
+	mlog.Debugf("FindPosition %s", pos)
 	c.JSON(200, pos)
 }
 
 func (ph *PlacementHandler) KeepAlive(c *gin.Context) {
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		phloger.Error("KeepAlive Error reading request body ", err)
+		mlog.Error("KeepAlive Error reading request body ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading request body"})
 		return
 	}
@@ -120,30 +133,30 @@ func (ph *PlacementHandler) KeepAlive(c *gin.Context) {
 	var req placement.ActorKeepAliveArgs
 	err = json.Unmarshal(bodyBytes, &req)
 	if err != nil {
-		phloger.Error("KeepAlive json.Unmarshal failed ", err)
+		mlog.Error("KeepAlive json.Unmarshal failed ", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	pos, ok, err := ph.actorStorage.GetActorInfo(&req.ActorId)
 	if err != nil {
-		phloger.Error("KeepAlive GetActorInfo failed ", err)
+		mlog.Error("KeepAlive GetActorInfo failed ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if !ok {
-		phloger.Error("KeepAlive Actor not found ", req.ActorId)
+		mlog.Error("KeepAlive Actor not found ", req.ActorId)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Actor not found"})
 		return
 	}
 	if pos.Token != req.Token {
-		phloger.Error("KeepAlive Token not match ", req, pos)
+		mlog.Error("KeepAlive Token not match ", req, pos)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Token not match"})
 		return
 	}
 	pos.DeadTime = utils.GetNowSec() + pos.TTL
 	err = ph.actorStorage.PutActorInfo(pos)
 	if err != nil {
-		phloger.Error("KeepAlive PutActorInfo failed ", err)
+		mlog.Error("KeepAlive PutActorInfo failed ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

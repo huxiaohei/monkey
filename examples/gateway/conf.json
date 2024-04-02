@@ -1,15 +1,12 @@
 {
-    "pdAddress": "192.168.81.128:8081",
-    "listenAddress": "192.168.81.128:8080",
+    "pdAddress": "0.0.0.0:8000",
+    "listenAddress": "0.0.0.0:8001",
     "listenPath": "/ws",
     "load": 0,
     "serverTTL": 15,
     "receiveTimeout": 15,
-    "services": {
-        "IGateway": "gateway",
-        "IPlayer": "player"
-    },
-    "desc": "gateway server",
+    "gatewayRPC": "0.0.0.0:8002",
+    "desc": "IGateway Server",
     "label": {
         "version": "1.0.0",
         "env": "dev",

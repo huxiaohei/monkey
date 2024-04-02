@@ -13,7 +13,7 @@ type GatewayConf struct {
 	Load           uint64            `json:"load"`
 	ServerTTL      int64             `json:"serverTTL"`
 	ReceiveTimeout int64             `json:"receiveTimeout"`
-	Services       map[string]string `json:"services"`
+	IGatewayRPC    string            `json:"gatewayRPC"`
 	Desc           string            `json:"desc"`
 	Labels         map[string]string `json:"labels"`
 }

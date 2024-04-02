@@ -1,6 +1,7 @@
 package placement
 
 import (
+	"fmt"
 	"monkey/actor"
 )
 
@@ -29,6 +30,10 @@ type PlacementActorHostInfo struct {
 	Services  map[string]string `json:"services" description:"服务器能提供的Actor对象类型"`
 	Desc      string            `json:"desc" description:"服务器的描述"`
 	Labels    map[string]string `json:"labels" description:"服务器的额外属性, 用来表示网关等信息"`
+}
+
+func (p PlacementActorHostInfo) String() string {
+	return fmt.Sprintf("ServerId: %d, LeaseId: %d, Load: %d, StartTime: %d, TTL: %d, DeadTime: %d, Address: %s, Services: %v, Desc: %s, Labels: %v", p.ServerId, p.LeaseId, p.Load, p.StartTime, p.TTL, p.DeadTime, p.Address, p.Services, p.Desc, p.Labels)
 }
 
 // PD上最近发生的事件
@@ -67,6 +72,10 @@ type PlacementActorPosition struct {
 	Token      string        `json:"token" description:"写入Token"`
 }
 
+func (p PlacementActorPosition) String() string {
+	return fmt.Sprintf("ActorId: %s, TTL: %d, CreateTime: %d, DeadTime: %d, ServerId: %d, Token: %s", p.ActorId.String(), p.TTL, p.CreateTime, p.DeadTime, p.ServerId, p.Token)
+}
+
 // Actor续约请求
 type ActorKeepAliveArgs struct {
 	ActorId actor.ActorId `json:"actorId" description:"ActorID"`
@@ -94,6 +103,9 @@ type Placement interface {
 
 	// 注册当前服务器到PD里面去
 	RegisterServer(info *PlacementActorHostInfo) uint64
+
+	// 获取服务器的信息
+	GetServerInfo(serverId uint64) *PlacementActorHostInfo
 
 	// 给当前服务器续约, 维持其生命
 	KeepAliveServer(serverId uint64, leaseId uint64, load uint64) *PlacementKeepAliveResponse
