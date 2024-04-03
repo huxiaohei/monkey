@@ -13,9 +13,14 @@ type GatewayConf struct {
 	Load           uint64            `json:"load"`
 	ServerTTL      int64             `json:"serverTTL"`
 	ReceiveTimeout int64             `json:"receiveTimeout"`
-	IGatewayRPC    string            `json:"gatewayRPC"`
+	Services       map[string]string `json:"services" description:"服务器能提供的Actor对象类型"`
 	Desc           string            `json:"desc"`
 	Labels         map[string]string `json:"labels"`
+}
+
+func (g GatewayConf) String() string {
+	return fmt.Sprintf("PdAddress: %s, ListenAddress: %s, ListenPath: %s, Load: %d, ServerTTL: %d, ReceiveTimeout: %d, Services: %s, Desc: %s, Labels: %v",
+		g.PdAddress, g.ListenAddress, g.ListenPath, g.Load, g.ServerTTL, g.ReceiveTimeout, g.Services, g.Desc, g.Labels)
 }
 
 func NewGatewayConf(path string) (*GatewayConf, error) {

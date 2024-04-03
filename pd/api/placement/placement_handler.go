@@ -98,7 +98,7 @@ func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if ok && !ph.serverStorgate.IsServerValid(pos.ServerId) {
+	if ok && (!ph.serverStorgate.IsServerValid(pos.ServerId) || pos.DeadTime < utils.GetNowSec()) {
 		ok = false
 		ph.actorStorage.DeleteActor(&req.ActorId)
 	}
@@ -151,6 +151,12 @@ func (ph *PlacementHandler) KeepAlive(c *gin.Context) {
 	if pos.Token != req.Token {
 		mlog.Error("KeepAlive Token not match ", req, pos)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Token not match"})
+		return
+	}
+	if pos.DeadTime < utils.GetNowSec() {
+		mlog.Error("KeepAlive Actor expired ", req, pos)
+		ph.actorStorage.DeleteActor(&req.ActorId)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Actor expired"})
 		return
 	}
 	pos.DeadTime = utils.GetNowSec() + pos.TTL

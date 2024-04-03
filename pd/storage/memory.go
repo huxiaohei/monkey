@@ -130,6 +130,9 @@ func (s *MemoryStorage) KeepAliveServer(serverId uint64, leaseId uint64, load ui
 		return nil, fmt.Errorf("server not found %v", serverId)
 	}
 	info := s.serverCache[serverId]
+	if info.DeadTime <= utils.GetNowSec() {
+		return nil, fmt.Errorf("server already dead %v", serverId)
+	}
 	if info.LeaseId != leaseId {
 		return nil, fmt.Errorf("lease id not match %v", leaseId)
 	}

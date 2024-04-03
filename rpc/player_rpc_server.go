@@ -31,7 +31,7 @@ func StartPlayerRPCServer(address string) error {
 }
 
 func (p *PlayerRPCServer) Bind(ctx context.Context, msg *pb.BindMsg) (*emptypb.Empty, error) {
-	mlog.Infof("bind player %d_%d_%d", msg.UserId, msg.SessionId, msg.ServerId)
+	mlog.Infof("bind %d %d %d %d %s %s", msg.ServerId, msg.UserId, msg.SessionId, msg.MsgSeq, msg.AccountToken, msg.TtlToken)
 	return nil, nil
 }
 

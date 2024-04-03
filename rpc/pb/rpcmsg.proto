@@ -22,4 +22,7 @@ message BindMsg
     uint64 server_id = 1;
     uint64 user_id = 2;
     uint64 session_id = 3;
+    uint64 msg_seq = 4;
+    string account_token = 5;
+    string ttl_token = 6;
 }

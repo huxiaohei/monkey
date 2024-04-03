@@ -5,7 +5,9 @@
     "load": 0,
     "serverTTL": 15,
     "receiveTimeout": 15,
-    "gatewayRPC": "0.0.0.0:8002",
+    "services": {
+        "IGateway": "0.0.0.0:8002"
+    },
     "desc": "IGateway Server",
     "label": {
         "version": "1.0.0",

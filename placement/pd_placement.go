@@ -213,7 +213,7 @@ func (pdp *PDPlacement) FindActorPositionInCache(request *PlacementFindActorPosi
 
 func (pdp *PDPlacement) FindActorPositon(request *PlacementFindActorPositionArgs) *PlacementActorPosition {
 	pos, ok := pdp.positionLRU.Get(request.ActorId)
-	if ok && pdp.IsServerValid(pos.ServerId) {
+	if ok && pdp.IsServerValid(pos.ServerId) && pos.DeadTime > utils.GetNowSec() {
 		return pos
 	}
 	data, err := json.Marshal(request)

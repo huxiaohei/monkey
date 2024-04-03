@@ -7,6 +7,7 @@ type FirstPacket struct {
 	Token      string `json:"token"`
 	ServerType string `json:"serverType"`
 	ClientTs   int64  `json:"clientTs"`
+	MsgSeq     uint64 `json:"msgSeq"`
 }
 
 func (fp *FirstPacket) String() string {

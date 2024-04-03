@@ -23,14 +23,14 @@ var (
 	}
 	receiveTimeout int64                  = 30
 	sessionManager network.SessionManager = network.NewSessionManager()
-	glog, _                               = logger.GetLoggerManager().GetLogger(logger.MainTag)
+	mlog, _                               = logger.GetLoggerManager().GetLogger(logger.MainTag)
 	pd             *placement.PDPlacement = nil
 )
 
 func accept(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		glog.Error("upgrade:", err)
+		mlog.Error("upgrade:", err)
 		return
 	}
 	s := network.NewWebSocketSession(c, &codec.GatewayCodec{}, &handler.GatewayMessageHandler{
@@ -43,7 +43,7 @@ func accept(w http.ResponseWriter, r *http.Request) {
 func registerServer(cfg *conf.GatewayConf) uint64 {
 	serverId, err := pd.GenerateServerId()
 	if err != nil {
-		glog.Error("generate server id error: ", err)
+		mlog.Error("generate server id error: ", err)
 		return 0
 	}
 	leaseId := pd.RegisterServer(&placement.PlacementActorHostInfo{
@@ -54,33 +54,35 @@ func registerServer(cfg *conf.GatewayConf) uint64 {
 		TTL:       cfg.ServerTTL,
 		DeadTime:  0,
 		Address:   cfg.ListenAddress,
-		Services:  map[string]string{"IGateway": cfg.IGatewayRPC},
+		Services:  cfg.Services,
 		Desc:      cfg.Desc,
 		Labels:    cfg.Labels,
 	})
 	if leaseId == 0 {
-		glog.Error("register server error")
+		mlog.Error("register server error")
 		return 0
 	}
-	glog.Infof("register server success, serverId: %d leaseId: %d", serverId, leaseId)
+	mlog.Infof("register server success, serverId: %d leaseId: %d", serverId, leaseId)
 	pd.StartPulling()
 	return serverId
 }
 
 func Start(cfg *conf.GatewayConf) {
-	glog.Infof("Gateway starting %v", cfg)
+	mlog.Infof("Gateway starting %v", cfg)
 
 	pd = placement.NewPDPlacement(cfg.PdAddress)
 	rpc.GetRPCClientManager().SetPlacement(pd)
 	serverId := registerServer(cfg)
 	if serverId == 0 {
-		glog.Errorf("register server error pdAddress:%v", cfg.PdAddress)
+		mlog.Errorf("register server error pdAddress:%v", cfg.PdAddress)
 		return
 	}
-	rpc.StartGatewayRPCServer(cfg.IGatewayRPC, sessionManager)
+
+	rpc.StartGatewayRPCServer(cfg.Services["IGatewayRPC"], sessionManager)
+
 	receiveTimeout = cfg.ReceiveTimeout
 	http.HandleFunc(cfg.ListenPath, accept)
 	err := http.ListenAndServe(cfg.ListenAddress, nil)
 
-	glog.Info("Gateway end with error: ", err)
+	mlog.Info("Gateway end with error: ", err)
 }

@@ -57,17 +57,27 @@ func (gmh *GatewayMessageHandler) processFirstMessage(session network.ConnSessio
 	gmh.ActorInfo.ServerId = position.ServerId
 	gmh.ActorInfo.SessionId = session.GetSessionId()
 	gmh.ActorInfo.SessionServerId = gmh.PD.GetCurServerId()
+	gmh.ActorInfo.AccountToken = firstPacket.Token
+	gmh.ActorInfo.TtlToken = position.Token
 
 	player, err := rpc.GetRPCClientManager().GetPlayerClient(gmh.ActorInfo.ActorId.Id)
 	if err != nil {
 		gmhlog.Errorf("get player rpc client error %v", err)
 		return
 	}
-	player.Bind(&pb.BindMsg{ServerId: gmh.PD.GetCurServerId(), UserId: gmh.ActorInfo.ActorId.Id, SessionId: uint64(session.GetSessionId())})
+	bindMsg := &pb.BindMsg{
+		ServerId:     gmh.PD.GetCurServerId(),
+		UserId:       gmh.ActorInfo.ActorId.Id,
+		SessionId:    uint64(session.GetSessionId()),
+		MsgSeq:       firstPacket.MsgSeq,
+		AccountToken: gmh.ActorInfo.AccountToken,
+		TtlToken:     gmh.ActorInfo.TtlToken,
+	}
+	player.Bind(bindMsg)
 }
 
 func (gmh *GatewayMessageHandler) processCommonMessage(session network.ConnSession, msg interface{}) {
-	pos := gmh.PD.FindActorPositon(&placement.PlacementFindActorPositionArgs{ActorId: gmh.ActorInfo.ActorId, TTL: 0})
+	pos := gmh.PD.FindActorPositon(&placement.PlacementFindActorPositionArgs{ActorId: gmh.ActorInfo.ActorId, TTL: 1800})
 	if pos == nil {
 		gmhlog.Errorf("can not find actor position %v", gmh.ActorInfo.ActorId)
 		return
