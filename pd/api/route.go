@@ -49,7 +49,7 @@ func RegisterRouteV1(engine *gin.Engine, sequenceStorage storage.SequenceStorage
 		placementHandler := placement.NewPlacementHandler(serverStorgate, actorStorage)
 
 		placementV1.POST("findPosition", makeRouteHandler(placementHandler.FindPosition))
-		placementV1.POST("keepAlive", makeRouteHandler(placementHandler.KeepAlive))
+		placementV1.POST("actorKeepAlive", makeRouteHandler(placementHandler.KeepAlive))
 	}
 
 }

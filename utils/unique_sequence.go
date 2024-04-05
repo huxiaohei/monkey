@@ -5,6 +5,7 @@ import (
 )
 
 type SessionId uint64
+type TimerId uint64
 
 type UniqueSequence struct {
 	nextId uint64
@@ -27,4 +28,9 @@ func (us *UniqueSequence) GetNewSequence(step uint64) uint64 {
 func (us *UniqueSequence) GetNewSessionId() SessionId {
 	id := atomic.AddUint64(&us.nextId, 1)
 	return SessionId(id)
+}
+
+func (us *UniqueSequence) GetNewTimerId() TimerId {
+	id := atomic.AddUint64(&us.nextId, 1)
+	return TimerId(id)
 }

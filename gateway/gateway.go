@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"monkey/actor"
 	"monkey/conf"
 	"monkey/gateway/codec"
 	"monkey/gateway/handler"
@@ -34,8 +33,7 @@ func accept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s := network.NewWebSocketSession(c, &codec.GatewayCodec{}, &handler.GatewayMessageHandler{
-		PD:        pd,
-		ActorInfo: actor.ActorInfo{},
+		PD: pd,
 	}, sessionManager)
 	s.ReceiveMessage(receiveTimeout)
 }
@@ -46,7 +44,7 @@ func registerServer(cfg *conf.GatewayConf) uint64 {
 		mlog.Error("generate server id error: ", err)
 		return 0
 	}
-	leaseId := pd.RegisterServer(&placement.PlacementActorHostInfo{
+	leaseId := pd.RegisterServer(&placement.PlacementHostInfo{
 		ServerId:  serverId,
 		LeaseId:   0,
 		Load:      cfg.Load,

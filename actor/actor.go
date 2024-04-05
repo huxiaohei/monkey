@@ -7,22 +7,29 @@ import (
 
 type ActorId struct {
 	ActorType string `json:"actorType" description:"Actor类型"`
-	Id        uint64 `json:"actorId" description:"ActorID"`
+	Id        uint64 `json:"actorId" description:"Id"`
 }
 
 func (ai ActorId) String() string {
-	return fmt.Sprintf("actorType: %s, actorId: %d", ai.ActorType, ai.Id)
+	return fmt.Sprintf("actorType: %s, Id: %d", ai.ActorType, ai.Id)
 }
 
-type ActorInfo struct {
-	ActorId         ActorId         `json:"actorId" description:"ActorID"`
-	ServerId        uint64          `json:"serverId" description:"服务器ID"`
-	SessionId       utils.SessionId `json:"sessionId" description:"sessionID"`
-	SessionServerId uint64          `json:"sessionServerId" description:"session服务器ID"`
-	AccountToken    string          `json:"accountToken" description:"账号Token"`
-	TtlToken        string          `json:"ttlToken" description:"TTL Token"`
-}
+type Actor interface {
+	OnActivate()
+	Init(ttl int64, weight uint64, ttlToken string, sessionId utils.SessionId, sessionServerId uint64)
+	OnDeactivate()
 
-func (ai ActorInfo) String() string {
-	return fmt.Sprintf("actorId: %s, serverId: %d, sessionId: %d, sessionServerId: %d, accountToken: %s, ttlToken: %s", ai.ActorId, ai.ServerId, ai.SessionId, ai.SessionServerId, ai.AccountToken, ai.TtlToken)
+	ActorId() ActorId
+	TTL() int64
+	ActerWeight() uint64
+	IsActivated() bool
+
+	RegisterTimer(interval int64, leftCount uint64, callback func(...interface{}), args ...interface{}) utils.TimerId
+	UnregisterTimer(id utils.TimerId)
+	UnregisterAllTimer()
+
+	SendMessageToClient(msg []byte)
+	RegisterMessageProcess(name string, process func(msg []byte) []byte)
+
+	DispatchMessage()
 }

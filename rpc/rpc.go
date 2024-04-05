@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"fmt"
-	"monkey/actor"
 	"monkey/logger"
 	"monkey/placement"
 	"monkey/rpc/pb"
@@ -72,16 +71,15 @@ func (m *RPCClientManager) GetGatewayClient(serverId uint64) (*GatewayRPCClient,
 
 func (m *RPCClientManager) GetPlayerClient(id uint64) (*PlayerRPCClient, error) {
 	actorInfo := m.pd.FindActorPositon(&placement.PlacementFindActorPositionArgs{
-		ActorId: actor.ActorId{
-			ActorType: "IPlayer",
-			Id:        id,
-		},
+		ActorType: "IPlayer",
+		Id:        id,
+		TTL:       1800,
 	})
 	if actorInfo == nil {
 		mlog.Errorf("find actor position error: player_%v", id)
 		return nil, fmt.Errorf("find actor position error: player_%v", id)
 	}
-	if client, ok := m.playerClients[fmt.Sprintf("%d_%s", actorInfo.ServerId, actorInfo.ActorId.ActorType)]; ok {
+	if client, ok := m.playerClients[fmt.Sprintf("%d_%s", actorInfo.ServerId, actorInfo.ActorType)]; ok {
 		return client, nil
 	}
 
@@ -103,7 +101,7 @@ func (m *RPCClientManager) GetPlayerClient(id uint64) (*PlayerRPCClient, error) 
 		return nil, err
 	}
 
-	key := fmt.Sprintf("%d_%s", actorInfo.ServerId, actorInfo.ActorId.ActorType)
+	key := fmt.Sprintf("%d_%s", actorInfo.ServerId, actorInfo.ActorType)
 	client := pb.NewPlayerClient(conn)
 	m.playerClients[key] = &PlayerRPCClient{
 		conn:   conn,

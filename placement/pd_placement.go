@@ -3,8 +3,8 @@ package placement
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
-	"monkey/actor"
 	"monkey/logger"
 	"monkey/utils"
 	"net/http"
@@ -12,21 +12,21 @@ import (
 )
 
 var (
-	_          Placement = &PDPlacement{}
-	pdloger, _           = logger.GetLoggerManager().GetLogger(logger.MainTag)
+	_       Placement = &PDPlacement{}
+	mlog, _           = logger.GetLoggerManager().GetLogger(logger.MainTag)
 )
 
 type PDPlacement struct {
 	pdServerAddress string
 	httpClient      *http.Client
-	positionLRU     *utils.LRU[actor.ActorId, PlacementActorPosition]
-	addServer       *utils.LRU[uint64, PlacementActorHostInfo]
-	offlineServer   *utils.LRU[uint64, PlacementActorHostInfo]
-	host            map[uint64]PlacementActorHostInfo
-	curServerInfo   *PlacementActorHostInfo
-	onAddServer     func(PlacementActorHostInfo)
-	onRemoveServer  func(PlacementActorHostInfo)
-	onServerOffline func(PlacementActorHostInfo)
+	positionLRU     *utils.LRU[string, PlacementActorPosition]
+	addServer       *utils.LRU[uint64, PlacementHostInfo]
+	offlineServer   *utils.LRU[uint64, PlacementHostInfo]
+	host            map[uint64]PlacementHostInfo
+	curServerInfo   *PlacementHostInfo
+	onAddServer     func(PlacementHostInfo)
+	onRemoveServer  func(PlacementHostInfo)
+	onServerOffline func(PlacementHostInfo)
 	onFatalError    func(error)
 	startPulling    bool
 }
@@ -39,11 +39,11 @@ func NewPDPlacement(pdServerAddress string) *PDPlacement {
 	return &PDPlacement{
 		pdServerAddress: pdServerAddress,
 		httpClient:      &http.Client{},
-		positionLRU:     utils.NewLRU[actor.ActorId, PlacementActorPosition](20000),
-		addServer:       utils.NewLRU[uint64, PlacementActorHostInfo](1024),
-		offlineServer:   utils.NewLRU[uint64, PlacementActorHostInfo](1024),
-		host:            make(map[uint64]PlacementActorHostInfo),
-		curServerInfo:   &PlacementActorHostInfo{},
+		positionLRU:     utils.NewLRU[string, PlacementActorPosition](20480),
+		addServer:       utils.NewLRU[uint64, PlacementHostInfo](1024),
+		offlineServer:   utils.NewLRU[uint64, PlacementHostInfo](1024),
+		host:            make(map[uint64]PlacementHostInfo),
+		curServerInfo:   &PlacementHostInfo{},
 		startPulling:    false,
 	}
 }
@@ -52,14 +52,14 @@ func (pdp *PDPlacement) get(path string) (int, []byte) {
 	url := pdp.pdServerAddress + path
 	resp, err := pdp.httpClient.Get(url)
 	if err != nil {
-		pdloger.Errorf("get %s failed, %v", url, err)
+		mlog.Errorf("get %s failed, %v", url, err)
 		return http.StatusInternalServerError, nil
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		pdloger.Errorf("read response body failed, %v", err)
+		mlog.Errorf("read response body failed, %v", err)
 		return http.StatusInternalServerError, nil
 	}
 	return resp.StatusCode, body
@@ -69,14 +69,14 @@ func (pdp *PDPlacement) post(path string, body []byte) (int, []byte) {
 	url := pdp.pdServerAddress + path
 	resp, err := pdp.httpClient.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
-		pdloger.Errorf("post %s failed, %v", url, err)
+		mlog.Errorf("post %s failed, %v", url, err)
 		return http.StatusInternalServerError, nil
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		pdloger.Errorf("read response body failed, %v", err)
+		mlog.Errorf("read response body failed, %v", err)
 		return http.StatusInternalServerError, nil
 	}
 	return resp.StatusCode, respBody
@@ -107,13 +107,13 @@ func (pdp *PDPlacement) GenerateServerId() (uint64, error) {
 func (pdp *PDPlacement) GenerateNewSequence(sequenceType string, step int) uint64 {
 	status, body := pdp.post("/pd/api/v1/id/newSequence", []byte(`{"sequenceType":"`+sequenceType+`","step":`+string(rune(step))+`}`))
 	if status != http.StatusOK {
-		pdloger.Errorf("generate new sequence failed, status: %d, body: %s", status, body)
+		mlog.Errorf("generate new sequence failed, status: %d, body: %s", status, body)
 		return 0
 	}
 	var resp SequenceResponse
 	err := json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return 0
 	}
 	return resp.Id
@@ -122,19 +122,19 @@ func (pdp *PDPlacement) GenerateNewSequence(sequenceType string, step int) uint6
 func (pdp *PDPlacement) GenerateNewToken() (*GenerateNewTokenResponse, error) {
 	status, body := pdp.post("/pd/api/v1/placement/newToken", nil)
 	if status != http.StatusOK {
-		pdloger.Errorf("generate new token failed, status: %d, body: %s", status, body)
+		mlog.Errorf("generate new token failed, status: %d, body: %s", status, body)
 		return nil, utils.NewError("generate new token failed, status: %d, body: %s", status, body)
 	}
 	var resp GenerateNewTokenResponse
 	err := json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return nil, utils.NewError("unmarshal response body failed, err: %v body: %s", err, body)
 	}
 	return &resp, nil
 }
 
-func (pdp *PDPlacement) GetServerInfo(serverId uint64) *PlacementActorHostInfo {
+func (pdp *PDPlacement) GetServerInfo(serverId uint64) *PlacementHostInfo {
 	info, ok := pdp.host[serverId]
 	if ok {
 		return &info
@@ -142,24 +142,24 @@ func (pdp *PDPlacement) GetServerInfo(serverId uint64) *PlacementActorHostInfo {
 	return nil
 }
 
-func (pdp *PDPlacement) RegisterServer(info *PlacementActorHostInfo) uint64 {
+func (pdp *PDPlacement) RegisterServer(info *PlacementHostInfo) uint64 {
 	if info.TTL <= 0 {
 		info.TTL = 15
 	}
 	data, err := json.Marshal(info)
 	if err != nil {
-		pdloger.Errorf("marshal register server info failed, err: %v", err)
+		mlog.Errorf("marshal register server info failed, err: %v", err)
 		return 0
 	}
 	status, body := pdp.post("/pd/api/v1/membership/registerServer", data)
 	if status != http.StatusOK {
-		pdloger.Errorf("register server failed, status: %d, body: %s", status, body)
+		mlog.Errorf("register server failed, status: %d, body: %s", status, body)
 		return 0
 	}
 	var resp RegisterServerResponse
 	err = json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return 0
 	}
 	if resp.LeaseId != 0 {
@@ -174,11 +174,11 @@ func (pdp *PDPlacement) RegisterServer(info *PlacementActorHostInfo) uint64 {
 		pdp.curServerInfo.Desc = info.Desc
 		pdp.curServerInfo.Labels = info.Labels
 	}
-	pdloger.Infof("register server success, serverId: %d leaseId: %d", info.ServerId, resp.LeaseId)
+	mlog.Infof("register server success, serverId: %d leaseId: %d", info.ServerId, resp.LeaseId)
 	return resp.LeaseId
 }
 
-func (pdp *PDPlacement) KeepAliveServer(serverId uint64, leaseId uint64, load uint64) *PlacementKeepAliveResponse {
+func (pdp *PDPlacement) KeepAliveServer(serverId uint64, leaseId uint64, load uint64) *ServerKeepAliveResponse {
 	args := &ServerKeepAliveArgs{
 		ServerId: serverId,
 		LeaseId:  leaseId,
@@ -186,25 +186,25 @@ func (pdp *PDPlacement) KeepAliveServer(serverId uint64, leaseId uint64, load ui
 	}
 	data, err := json.Marshal(args)
 	if err != nil {
-		pdloger.Errorf("marshal keep alive server args failed, err: %v", err)
+		mlog.Errorf("marshal keep alive server args failed, err: %v", err)
 		return nil
 	}
 	status, body := pdp.post("/pd/api/v1/membership/keepAliveServer", data)
 	if status != http.StatusOK {
-		pdloger.Errorf("keep alive server failed, status: %d, body: %s", status, body)
+		mlog.Errorf("keep alive server failed, status: %d, body: %s", status, body)
 		return nil
 	}
-	var resp PlacementKeepAliveResponse
+	var resp ServerKeepAliveResponse
 	err = json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return nil
 	}
 	return &resp
 }
 
 func (pdp *PDPlacement) FindActorPositionInCache(request *PlacementFindActorPositionArgs) *PlacementActorPosition {
-	resp, ok := pdp.positionLRU.Get(request.ActorId)
+	resp, ok := pdp.positionLRU.Get(fmt.Sprintf("%s_%d", request.ActorType, request.Id))
 	if ok {
 		return resp
 	}
@@ -212,48 +212,73 @@ func (pdp *PDPlacement) FindActorPositionInCache(request *PlacementFindActorPosi
 }
 
 func (pdp *PDPlacement) FindActorPositon(request *PlacementFindActorPositionArgs) *PlacementActorPosition {
-	pos, ok := pdp.positionLRU.Get(request.ActorId)
+	pos, ok := pdp.positionLRU.Get(fmt.Sprintf("%s_%d", request.ActorType, request.Id))
 	if ok && pdp.IsServerValid(pos.ServerId) && pos.DeadTime > utils.GetNowSec() {
 		return pos
 	}
 	data, err := json.Marshal(request)
 	if err != nil {
-		pdloger.Errorf("marshal find actor position request failed, err: %v", err)
+		mlog.Errorf("marshal find actor position request failed, err: %v", err)
 		return nil
 	}
 	status, body := pdp.post("/pd/api/v1/placement/findPosition", data)
 	if status != http.StatusOK {
-		pdloger.Errorf("find actor position failed, status: %d, body: %s", status, body)
+		mlog.Errorf("find actor position failed, status: %d, body: %s", status, body)
 		return nil
 	}
 	var resp PlacementActorPosition
 	err = json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return nil
 	}
 	_, ok = pdp.offlineServer.Get(resp.ServerId)
 	if !ok {
-		pdp.positionLRU.Put(request.ActorId, resp)
+		pdp.positionLRU.Put(fmt.Sprintf("%s_%d", request.ActorType, request.Id), resp)
+	}
+	return &resp
+}
+
+func (pdp *PDPlacement) ActorKeepAliveActor(actorType string, id uint64, token string) *ActorKeepAliveResponse {
+	request := &ActorKeepAliveArgs{
+		ActorType: actorType,
+		Id:        id,
+		Token:     token,
+	}
+	data, err := json.Marshal(request)
+	if err != nil {
+		mlog.Errorf("marshal actor keep alive request failed, err: %v", err)
+		return nil
+	}
+	status, body := pdp.post("/pd/api/v1/placement/actorKeepAlive", data)
+	if status != http.StatusOK {
+		mlog.Errorf("actor keep alive failed, status: %d, body: %s", status, body)
+		return nil
+	}
+	var resp ActorKeepAliveResponse
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		return nil
 	}
 	return &resp
 }
 
 func (pdp *PDPlacement) ClearActorPositionCache(request *PlacementFindActorPositionArgs) {
-	pdp.positionLRU.Remove(request.ActorId)
-	pdloger.Infof("clear actor position cache, actorId: %v", request.ActorId)
+	pdp.positionLRU.Remove(fmt.Sprintf("%s_%d", request.ActorType, request.Id))
+	mlog.Infof("clear actor position cache, actorId: %s_%d", request.ActorType, request.Id)
 }
 
 func (pdp *PDPlacement) GetVersionInfo() *PlacementVersionInfo {
 	status, body := pdp.get("/pd/api/v1/version")
 	if status != http.StatusOK {
-		pdloger.Errorf("get version info failed, status: %d, body: %s", status, body)
+		mlog.Errorf("get version info failed, status: %d, body: %s", status, body)
 		return nil
 	}
 	var resp PlacementVersionInfo
 	err := json.Unmarshal(body, &resp)
 	if err != nil {
-		pdloger.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
+		mlog.Errorf("unmarshal response body failed, err: %v body: %s", err, body)
 		return nil
 	}
 	return &resp
@@ -263,7 +288,7 @@ func (pdp *PDPlacement) GetCurServerId() uint64 {
 	return pdp.curServerInfo.ServerId
 }
 
-func (pdp *PDPlacement) RegisterServerChangedEvent(onAddServer func(PlacementActorHostInfo), onRemoveServer func(PlacementActorHostInfo), onServerOffline func(PlacementActorHostInfo), onFatalError func(error)) {
+func (pdp *PDPlacement) RegisterServerChangedEvent(onAddServer func(PlacementHostInfo), onRemoveServer func(PlacementHostInfo), onServerOffline func(PlacementHostInfo), onFatalError func(error)) {
 	pdp.onAddServer = onAddServer
 	pdp.onRemoveServer = onRemoveServer
 	pdp.onServerOffline = onServerOffline
@@ -274,7 +299,7 @@ func (pdp *PDPlacement) SetServerLoad(load uint64) {
 	pdp.curServerInfo.Load = load
 }
 
-func (pdp *PDPlacement) processAddServerEvent(newServers map[uint64]PlacementActorHostInfo, events PlacementEvents) {
+func (pdp *PDPlacement) processAddServerEvent(newServers map[uint64]PlacementHostInfo, events PlacementEvents) {
 	if len(events.Add) == 0 {
 		return
 	}
@@ -304,7 +329,7 @@ func (pdp *PDPlacement) processRemoveServerEvent(events PlacementEvents) {
 	}
 }
 
-func (pdp *PDPlacement) processServerOfflineEvent(newServers map[uint64]PlacementActorHostInfo) {
+func (pdp *PDPlacement) processServerOfflineEvent(newServers map[uint64]PlacementHostInfo) {
 	for serverId, server := range newServers {
 		if server.DeadTime <= utils.GetNowMs() && !pdp.offlineServer.Contain(serverId) {
 			pdp.offlineServer.Put(serverId, server)
@@ -315,7 +340,7 @@ func (pdp *PDPlacement) processServerOfflineEvent(newServers map[uint64]Placemen
 	}
 }
 
-func (pdp *PDPlacement) processDiffTwoServerList(newServers map[uint64]PlacementActorHostInfo) {
+func (pdp *PDPlacement) processDiffTwoServerList(newServers map[uint64]PlacementHostInfo) {
 	for serverId, server := range newServers {
 		if _, ok := pdp.host[serverId]; ok {
 			continue
@@ -334,14 +359,14 @@ func (pdp *PDPlacement) processDiffTwoServerList(newServers map[uint64]Placement
 func (pdp *PDPlacement) pullOnce() (ok bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			pdloger.Errorf("pullOnce failed, err: %v", err)
+			mlog.Errorf("pullOnce failed, err: %v", err)
 			ok = false
 		}
 	}()
 
 	resp := pdp.KeepAliveServer(pdp.curServerInfo.ServerId, pdp.curServerInfo.LeaseId, pdp.curServerInfo.Load)
 	if resp == nil {
-		pdloger.Errorf("pullOnce failed resp is nil")
+		mlog.Errorf("pullOnce failed resp is nil")
 		return false
 	}
 	for _, event := range resp.Events {
@@ -365,7 +390,7 @@ func (pdp *PDPlacement) pullServer() {
 		}
 		utils.SleepSec(timerInterval)
 		if failedCount > 3 {
-			pdloger.Errorf("pullServer failed, failedCount: %d", failedCount)
+			mlog.Errorf("pullServer failed, failedCount: %d", failedCount)
 			if pdp.onFatalError != nil {
 				pdp.onFatalError(utils.NewError("pullServer failed, failedCount: %d", failedCount))
 			}

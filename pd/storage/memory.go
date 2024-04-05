@@ -2,7 +2,8 @@ package storage
 
 import (
 	"fmt"
-	"monkey/actor"
+	// "monkey/actor"
+
 	"monkey/logger"
 	"monkey/placement"
 	"monkey/utils"
@@ -24,7 +25,7 @@ type MemoryStorage struct {
 	sequences   map[string]*utils.UniqueSequence
 	mulex       sync.RWMutex
 	actorCache  map[string]*placement.PlacementActorPosition
-	serverCache map[uint64]*placement.PlacementActorHostInfo
+	serverCache map[uint64]*placement.PlacementHostInfo
 }
 
 func NewMemoryStorage() *MemoryStorage {
@@ -32,7 +33,7 @@ func NewMemoryStorage() *MemoryStorage {
 		sequences:   make(map[string]*utils.UniqueSequence),
 		mulex:       sync.RWMutex{},
 		actorCache:  make(map[string]*placement.PlacementActorPosition),
-		serverCache: make(map[uint64]*placement.PlacementActorHostInfo),
+		serverCache: make(map[uint64]*placement.PlacementHostInfo),
 	}
 }
 
@@ -48,11 +49,11 @@ func (s *MemoryStorage) ClearActors() {
 	s.actorCache = make(map[string]*placement.PlacementActorPosition)
 }
 
-func (s *MemoryStorage) GetActorInfo(actorId *actor.ActorId) (*placement.PlacementActorPosition, bool, error) {
+func (s *MemoryStorage) GetActorInfo(actorType string, id uint64) (*placement.PlacementActorPosition, bool, error) {
 	defer s.mulex.RUnlock()
 	s.mulex.RLock()
 
-	key := ActorIdToStorageKey(actorId)
+	key := GetStorageKey(actorType, id)
 	if record, ok := s.actorCache[key]; ok {
 		return record, true, nil
 	}
@@ -63,19 +64,19 @@ func (s *MemoryStorage) PutActorInfo(info *placement.PlacementActorPosition) err
 	defer s.mulex.Unlock()
 	s.mulex.Lock()
 
-	key := ActorIdToStorageKey(&info.ActorId)
+	key := GetStorageKey(info.ActorType, info.Id)
 	s.actorCache[key] = info
 	mlog.Infof("MemoryStorage PutActorInfo %s", info)
 	return nil
 }
 
-func (s *MemoryStorage) DeleteActor(actorId *actor.ActorId) error {
+func (s *MemoryStorage) DeleteActor(actorType string, id uint64) error {
 	defer s.mulex.Unlock()
 	s.mulex.Lock()
 
-	key := ActorIdToStorageKey(actorId)
+	key := GetStorageKey(actorType, id)
 	delete(s.actorCache, key)
-	mlog.Infof("MemoryStorage DeleteActor %s", actorId)
+	mlog.Infof("MemoryStorage DeleteActor %s_%d", actorType, id)
 	return nil
 }
 
@@ -93,7 +94,7 @@ func (s *MemoryStorage) NewSequence(sequenceType string, step uint64) (*placemen
 	return resp, nil
 }
 
-func (s *MemoryStorage) RegisterServer(info *placement.PlacementActorHostInfo) error {
+func (s *MemoryStorage) RegisterServer(info *placement.PlacementHostInfo) error {
 	defer s.mulex.Unlock()
 	s.mulex.Lock()
 
@@ -122,7 +123,7 @@ func (s *MemoryStorage) DeleteServer(serverId uint64) error {
 	return nil
 }
 
-func (s *MemoryStorage) KeepAliveServer(serverId uint64, leaseId uint64, load uint64) (*placement.PlacementActorHostInfo, error) {
+func (s *MemoryStorage) KeepAliveServer(serverId uint64, leaseId uint64, load uint64) (*placement.PlacementHostInfo, error) {
 	defer s.mulex.Unlock()
 	s.mulex.Lock()
 
@@ -141,7 +142,7 @@ func (s *MemoryStorage) KeepAliveServer(serverId uint64, leaseId uint64, load ui
 	return info, nil
 }
 
-func (s *MemoryStorage) GetServerInfo(serverId uint64) (*placement.PlacementActorHostInfo, error) {
+func (s *MemoryStorage) GetServerInfo(serverId uint64) (*placement.PlacementHostInfo, error) {
 	defer s.mulex.RUnlock()
 	s.mulex.RLock()
 
@@ -151,11 +152,11 @@ func (s *MemoryStorage) GetServerInfo(serverId uint64) (*placement.PlacementActo
 	return nil, fmt.Errorf("server not found %v", serverId)
 }
 
-func (s *MemoryStorage) GetAllServerInfo() ([]*placement.PlacementActorHostInfo, error) {
+func (s *MemoryStorage) GetAllServerInfo() ([]*placement.PlacementHostInfo, error) {
 	defer s.mulex.RUnlock()
 	s.mulex.RLock()
 
-	var infos []*placement.PlacementActorHostInfo
+	var infos []*placement.PlacementHostInfo
 	for _, info := range s.serverCache {
 		if info.DeadTime <= utils.GetNowSec() {
 			continue

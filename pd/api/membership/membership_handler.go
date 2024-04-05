@@ -44,7 +44,7 @@ func (mh *MembershipHandler) RegisterServer(c *gin.Context) {
 		return
 	}
 
-	var info placement.PlacementActorHostInfo
+	var info placement.PlacementHostInfo
 	err = json.Unmarshal(bodyBytes, &info)
 	if err != nil {
 		mhloger.Error("RegisterServer Unmarshal failed ", err)
@@ -94,8 +94,8 @@ func (mh *MembershipHandler) KeepAliveServer(c *gin.Context) {
 		return
 	}
 
-	resp := placement.PlacementKeepAliveResponse{
-		Hosts:  make(map[uint64]placement.PlacementActorHostInfo, 0),
+	resp := placement.ServerKeepAliveResponse{
+		Hosts:  make(map[uint64]placement.PlacementHostInfo, 0),
 		Events: make([]placement.PlacementEvents, 0),
 	}
 	for _, h := range hosts {

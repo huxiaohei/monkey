@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"monkey/actor"
 	"monkey/logger"
 	"monkey/pd/storage"
 	"monkey/placement"
@@ -30,15 +29,15 @@ func NewPlacementHandler(serverStorgate storage.ServerStorage, actorStorage stor
 	}
 }
 
-func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*placement.PlacementActorPosition, error) {
+func (ph *PlacementHandler) GenNewActor(actorType string, id uint64, ttl int64) (*placement.PlacementActorPosition, error) {
 	hosts, err := ph.serverStorgate.GetAllServerInfo()
 	if err != nil {
 		mlog.Error("GenNewActor GetAllServerInfo failed ", err)
 		return nil, err
 	}
-	var bestHost *placement.PlacementActorHostInfo
+	var bestHost *placement.PlacementHostInfo
 	for _, host := range hosts {
-		if _, ok := host.Services[actorId.ActorType]; !ok {
+		if _, ok := host.Services[actorType]; !ok {
 			continue
 		}
 		if bestHost == nil {
@@ -50,8 +49,8 @@ func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*pla
 		}
 	}
 	if bestHost == nil {
-		mlog.Error("GenNewActor no host found ", actorId)
-		return nil, fmt.Errorf("no host found %v", actorId)
+		mlog.Errorf("GenNewActor no host found %s_%d", actorType, id)
+		return nil, fmt.Errorf("no host found %s_%d", actorType, id)
 	}
 	token, err := utils.GenerateToken(32)
 	if err != nil {
@@ -59,7 +58,8 @@ func (ph *PlacementHandler) GenNewActor(actorId *actor.ActorId, ttl int64) (*pla
 		return nil, err
 	}
 	pos := &placement.PlacementActorPosition{
-		ActorId:    *actorId,
+		ActorType:  actorType,
+		Id:         id,
 		TTL:        ttl,
 		CreateTime: utils.GetNowSec(),
 		DeadTime:   utils.GetNowSec() + ttl,
@@ -92,7 +92,7 @@ func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 	if req.TTL == 0 {
 		req.TTL = 1800
 	}
-	pos, ok, err := ph.actorStorage.GetActorInfo(&req.ActorId)
+	pos, ok, err := ph.actorStorage.GetActorInfo(req.ActorType, req.Id)
 	if err != nil {
 		mlog.Error("FindPosition GetActorInfo failed ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -100,10 +100,10 @@ func (ph *PlacementHandler) FindPosition(c *gin.Context) {
 	}
 	if ok && (!ph.serverStorgate.IsServerValid(pos.ServerId) || pos.DeadTime < utils.GetNowSec()) {
 		ok = false
-		ph.actorStorage.DeleteActor(&req.ActorId)
+		ph.actorStorage.DeleteActor(req.ActorType, req.Id)
 	}
 	if !ok {
-		pos, err = ph.GenNewActor(&req.ActorId, req.TTL)
+		pos, err = ph.GenNewActor(req.ActorType, req.Id, req.TTL)
 		if err != nil {
 			mlog.Error("FindPosition GenNewActor failed ", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -137,25 +137,25 @@ func (ph *PlacementHandler) KeepAlive(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	pos, ok, err := ph.actorStorage.GetActorInfo(&req.ActorId)
+	pos, ok, err := ph.actorStorage.GetActorInfo(req.ActorType, req.Id)
 	if err != nil {
 		mlog.Error("KeepAlive GetActorInfo failed ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if !ok {
-		mlog.Error("KeepAlive Actor not found ", req.ActorId)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Actor not found"})
+		mlog.Errorf("KeepAlive Actor not found %s_%d", req.ActorType, req.Id)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Actor not found %s_%d", req.ActorType, req.Id)})
 		return
 	}
 	if pos.Token != req.Token {
-		mlog.Error("KeepAlive Token not match ", req, pos)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Token not match"})
+		mlog.Errorf("KeepAlive Token not match %s_%d %s_%s", req.ActorType, req.Id, req, pos)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Token not match %s_%d", req.ActorType, req.Id)})
 		return
 	}
 	if pos.DeadTime < utils.GetNowSec() {
 		mlog.Error("KeepAlive Actor expired ", req, pos)
-		ph.actorStorage.DeleteActor(&req.ActorId)
+		ph.actorStorage.DeleteActor(req.ActorType, req.Id)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Actor expired"})
 		return
 	}
