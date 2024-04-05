@@ -7,16 +7,16 @@ import (
 )
 
 var (
-	log, _ = logger.GetLoggerManager().GetLogger(logger.MainTag)
+	mlog, _ = logger.GetLoggerManager().GetLogger(logger.MainTag)
 )
 
 func main() {
 
-	log.Info("pd started")
+	mlog.Info("pd started")
 
 	memoryStorage := storage.NewMemoryStorage()
 
 	pd.Start(memoryStorage, memoryStorage, memoryStorage, "0.0.0.0:8000", "0.0.1")
 
-	log.Info("pd stopped")
+	mlog.Info("pd stopped")
 }

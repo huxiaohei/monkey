@@ -1,6 +1,8 @@
 package main
 
 import (
+	"monkey/actor"
+	"monkey/examples/game/player"
 	"monkey/logger"
 	"monkey/placement"
 	"monkey/rpc"
@@ -19,7 +21,7 @@ func main() {
 		mlog.Error("generate server id error: ", err)
 		return
 	}
-	leaseId := pd.RegisterServer(&placement.PlacementActorHostInfo{
+	leaseId := pd.RegisterServer(&placement.PlacementHostInfo{
 		ServerId:  serverId,
 		LeaseId:   0,
 		Load:      0,
@@ -39,7 +41,10 @@ func main() {
 	pd.StartPulling()
 
 	rpc.GetRPCClientManager().SetPlacement(pd)
-	rpc.StartPlayerRPCServer("0.0.0.0:8003")
+	player.StartPlayerRPCServer("0.0.0.0:8003")
+
+	actor.GetActorManager().SetPlacement(pd)
+	actor.GetActorManager().RegisterActorImpl("IPlayer", player.NewPlayer)
 
 	for {
 		utils.SleepSec(10)
