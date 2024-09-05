@@ -27,13 +27,16 @@ class Placement():
         pass
 
     @abstractmethod
-    def find_position_in_cache(self, actor_type: Type[ActorType], actor_id: str) -> ServerNode | None:
+    def find_position_in_cache(self, actor_type: str, actor_id: str) -> ServerNode | None:
         pass
 
     @abstractmethod
-    async def find_position(self, actor_type: Type[ActorType], actor_id: str) -> ServerNode | None:
+    async def find_position(self, actor_type: str, actor_id: str) -> ServerNode | None:
+        pass
+
+    def remove_position_from_cache(self, actor_type: str, actor_id: str) -> None:
         pass
 
     @abstractmethod
-    async def actor_keep_alive(self, actor_type: Type[ActorType], actor_id: str, sec: int) -> bool:
+    async def actor_keep_alive(self, actor_type: str, actor_id: str, sec: int) -> bool:
         pass

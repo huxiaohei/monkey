@@ -47,7 +47,9 @@ class ActorMessageLoop(object):
                 (request.server_name, request.method_name))
             if method is None:
                 raise RpcException.method_not_found(
-                    f'{request.server_name}:{request.actor_id}', request.method_name)
+                    actor.actor_type(),
+                    f'{request.server_name}:{request.actor_id}',
+                    request.method_name)
             actor.context.update_last_msg_time()
             result = method.__call__(actor, *request.args, **request.kwargs)
             if asyncio.iscoroutine(result):

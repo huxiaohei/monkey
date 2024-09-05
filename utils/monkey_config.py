@@ -79,6 +79,11 @@ class MonkeyConfig(ABC):
 
     @property
     @abstractmethod
+    def rpc_timeout(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
     def socket_gc_interval(self) -> int:
         pass
 
@@ -139,6 +144,7 @@ class DefaultMonkeyConfig(MonkeyConfig):
         self.__tcp_buffer_max_size = 1024 * 4
         self.__tcp_session_timeout = 60
         self.__tcp_window_size = 1024 * 4
+        self.__rpc_timeout = 5
         self.__socket_gc_interval = 30
         self.__magic_code = 'Monkey'
         self.__consul_namespace = 'MonkeyDev'
@@ -199,6 +205,10 @@ class DefaultMonkeyConfig(MonkeyConfig):
     @property
     def tcp_window_size(self) -> int:
         return self.__tcp_window_size
+
+    @property
+    def rpc_timeout(self) -> int:
+        return self.__rpc_timeout
 
     @property
     def socket_gc_interval(self) -> int:
@@ -275,6 +285,8 @@ class DefaultMonkeyConfig(MonkeyConfig):
             self.__tcp_session_timeout = server_config['tcpSessionTimeout']
         if 'tcpWindowSize' in server_config:
             self.__tcp_window_size = server_config['tcpWindowSize']
+        if 'rpcTimeout' in server_config:
+            self.__rpc_timeout = server_config['rpcTimeout']
         if 'socketGCInterval' in server_config:
             self.__socket_gc_interval = server_config['socketGCInterval']
         if 'magicCode' in server_config:

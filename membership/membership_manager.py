@@ -49,12 +49,16 @@ class MembershipManager(Singleton):
             return False
         return await self.__membership.unregister_server(server_id)
 
-    async def find_position(self, actor_type: Type[ActorType], actor_id: str) -> ServerNode | None:
+    async def find_position(self, actor_type: str, actor_id: str) -> ServerNode | None:
         if self.__placement is None:
             return None
         return await self.__placement.find_position(actor_type, actor_id)
 
-    async def actor_keep_alive(self, actor_type: Type[ActorType], actor_id: str, sec: int) -> bool:
+    def remove_position_from_cache(self, actor_type: str, actor_id: str) -> None:
+        if self.__placement is not None:
+            self.__placement.remove_position_from_cache(actor_type, actor_id)
+
+    async def actor_keep_alive(self, actor_type: str, actor_id: str, sec: int) -> bool:
         if self.__placement is None:
             return False
         return await self.__placement.actor_keep_alive(actor_type, actor_id, sec)

@@ -43,8 +43,8 @@ class RedisPlacement(Singleton, Placement):
         asyncio.create_task(self.__heart_beat_loop())
 
     @classmethod
-    def placement_key(cls, actor_type: Type[ActorType], actor_id: str) -> str:
-        return f'{actor_type.actor_type()}:{actor_id}'
+    def placement_key(cls, actor_type: str, actor_id: str) -> str:
+        return f'{actor_type}:{actor_id}'
 
     def on_add_server(self, node: ServerNode):
         logger.info(f'RedisPlacement on_add_server {node.server_id}')
@@ -59,7 +59,7 @@ class RedisPlacement(Singleton, Placement):
             if placement is not None and placement.server_id == node.server_id:
                 self.__cache.pop(key)
 
-    def find_position_in_cache(self, actor_type: Type[ActorType], actor_id: str) -> ServerNode | None:
+    def find_position_in_cache(self, actor_type: str, actor_id: str) -> ServerNode | None:
         actor_placement = self.__cache.get(
             self.placement_key(actor_type, actor_id))
         if actor_placement is None:
@@ -69,16 +69,16 @@ class RedisPlacement(Singleton, Placement):
             return None
         return MembershipManager().get_member(actor_placement.server_id)
 
-    async def find_position(self, actor_type: Type[ActorType], actor_id: str) -> ServerNode | None:
+    async def find_position(self, actor_type: str, actor_id: str) -> ServerNode | None:
         node = self.find_position_in_cache(actor_type, actor_id)
         if node is not None and node.session is not None:
             return node
-        node = MembershipManager().choose_member(actor_type.actor_type())
+        node = MembershipManager().choose_member(actor_type)
         if node is None:
             return None
         async_script = self.__redis_client.register_script(
             RedisScript.find_actor_position_lua())
-        server_id = await async_script(keys=[actor_type.actor_type(), actor_id], args=[node.server_id, 120])
+        server_id = await async_script(keys=[actor_type, actor_id], args=[node.server_id, 120])
         if isinstance(server_id, bytes):
             server_id = server_id.decode('utf-8')
         node = MembershipManager().get_member(server_id)
@@ -86,29 +86,29 @@ class RedisPlacement(Singleton, Placement):
             self.__cache.put(
                 self.placement_key(actor_type, actor_id),
                 ActorPlacement(actor_id=actor_id,
-                               actor_type=actor_type.actor_type(),
+                               actor_type=actor_type,
                                server_id=server_id,
                                expire_time=MonkeyTime.timestamp_sec() + 120))
         return node
 
-    def remove_position(self, actor_type: Type[ActorType], actor_id: str) -> None:
+    def remove_position_from_cache(self, actor_type: str, actor_id: str) -> None:
         """理论上不应该主动清理Redis中的数据,Actor下线时按道理,Redis中的数据会自动过期"""
         self.__cache.pop(self.placement_key(actor_type, actor_id))
 
-    async def actor_keep_alive(self, actor_type: Type[ActorType], actor_id: str, sec: int) -> bool:
+    async def actor_keep_alive(self, actor_type: str, actor_id: str, sec: int) -> bool:
         actor_placement = self.__cache.get(
             self.placement_key(actor_type, actor_id))
         if actor_placement is None:
             return False
         async_script = self.__redis_client.register_script(
             RedisScript.actor_keep_alive_lua())
-        result = await async_script(keys=[actor_type.actor_type(), actor_id], args=[actor_placement.server_id, sec])
+        result = await async_script(keys=[actor_type, actor_id], args=[actor_placement.server_id, sec])
         if isinstance(result, bytes):
             result = result.decode('utf-8')
         if result == 'success':
             actor_placement.expire_time = MonkeyTime.timestamp_sec() + sec
             return True
-        self.remove_position(actor_type, actor_id)
+        self.remove_position_from_cache(actor_type, actor_id)
         return False
 
     async def __try_send_heart_beat(self):
